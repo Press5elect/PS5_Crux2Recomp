@@ -81,8 +81,13 @@ def main() -> int:
         sys.stderr.write("\n".join(failures[:5]) + f"\nbuild-runner-module: {len(failures)} file(s) did not compile\n")
         return 1
 
+    # The objects are named in a file the linker reads (@file): a game has thousands of them, and
+    # Windows takes no command line over 32,767 characters ("The filename or extension is too
+    # long"). Forward slashes and quotes, which the linker reads the same way on every system.
+    listed = objects / "objects.rsp"
+    listed.write_text("".join(f'"{(objects / (s.stem + ".o")).as_posix()}"\n' for s in sources), encoding="utf-8")
     link = [args.lld, "-shared", "-Bsymbolic", "--hash-style=sysv", "-z", "now", "--gc-sections", "--eh-frame-hdr",
-            "-soname", args.out.name, "-o", str(args.out)] + [str(objects / (s.stem + ".o")) for s in sources]
+            "-soname", args.out.name, "-o", str(args.out), "@" + listed.as_posix()]
     result = subprocess.run(link, capture_output=True, text=True)
     if result.returncode != 0:
         sys.stderr.write(result.stderr[-4000:])
